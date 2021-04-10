@@ -65,3 +65,42 @@ class OutputLayer(nn.Module):
 
     def forward(self, x):
         return self.output(x)
+
+class UNet(nn.Module):
+    def __init__(self, input_channel, n_classes):
+        super(UNet, self).__init__()
+        self.n_channels = input_channel
+        self.n_classes = n_classes
+        # define input layers
+        self.in_layer_1 = ConvBlock(self.n_channels, 64)
+        self.in_layer_2 = ConvBlock(64, 64)
+        # define encoder layers
+        self.encoder1 = EncoderBlock(64, 128)
+        self.encoder2 = EncoderBlock(128, 256)
+        self.encoder3 = EncoderBlock(256, 512)
+        self.encoder4 = EncoderBlock(512, 1024)
+        # define decoder layers
+        self.decoder1 = DecoderBlock(1024, 512)
+        self.decoder2 = DecoderBlock(512, 256)
+        self.decoder3 = DecoderBlock(256, 128)
+        self.decoder4 = DecoderBlock(128, 64)
+        # define output layers
+        self.out_layer = OutputLayer(64, self.n_classes)
+
+    def forward(self, x):
+        # input layer
+        x = self.in_layer_1(x)
+        i = self.in_layer_2(x)
+        # downsampling / conv
+        e1 = self.encoder1(i)
+        e2 = self.encoder2(e1)
+        e3 = self.encoder3(e2)
+        e4 = self.encoder4(e3)
+        # concat prev encoder layer. i.e. skip connection
+        # name the output as x to save graphic memory
+        x = self.decoder1(e4, e3)
+        x = self.decoder2(x, e2)
+        x = self.decoder3(x, e1)
+        x = self.decoder4(x, i)
+        logits = self.out_layer(x)
+        return logits
