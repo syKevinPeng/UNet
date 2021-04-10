@@ -1,7 +1,7 @@
 import util
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+import numpy as np
 from dataloader import preprocessing
 from model import ConvBlock, EncoderBlock, DecoderBlock, OutputLayer
 from tqdm import tqdm
@@ -38,8 +38,8 @@ class UNet(nn.Module):
         # downsampling / conv
         e1 = self.encoder1(i)
         e2 = self.encoder2(e1)
-        e3 = self.decoder3(e2)
-        e4 = self.decoder4(e3)
+        e3 = self.encoder3(e2)
+        e4 = self.encoder4(e3)
         # concat prev encoder layer. i.e. skip connection
         # name the output as x to save graphic memory
         x = self.decoder1(e4, e3)
@@ -77,7 +77,7 @@ def training(train_dataloader, val_dataloader):
                 img, label = img.to(DEVICE), label.to(DEVICE)
                 optimizer.zero_grad()
                 prediction = model(img)
-                loss = criterion(prediction, label)
+                loss = criterion(prediction, label.type(torch.int64))
                 epoch_loss += loss.item()
                 writer.add_scalar('Loss/train', loss.item(), batch_num)
                 tepoch.set_postfix(loss=epoch_loss)
