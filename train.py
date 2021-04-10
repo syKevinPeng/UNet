@@ -7,6 +7,7 @@ from model import ConvBlock, EncoderBlock, DecoderBlock, OutputLayer
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+from torchsummary import summary
 DEVICE = 'cuda:0'
 
 
@@ -59,10 +60,10 @@ def training(train_dataloader, val_dataloader):
     # model initialization
     model = UNet(input_channel=3, n_classes=10)
     model = model.cuda()
-    criterion = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    summary(model, (3, 256, 256))
     criterion = nn.CrossEntropyLoss()
-    writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}_{datetime.now().strftime("%H-%M-%S")}')
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}')
 
     # Run your training / validation loops
     epoch_loss = 0
@@ -77,7 +78,7 @@ def training(train_dataloader, val_dataloader):
                 img, label = img.to(DEVICE), label.to(DEVICE)
                 optimizer.zero_grad()
                 prediction = model(img)
-                loss = criterion(prediction, label.type(torch.int64))
+                loss = criterion(prediction, label.type(torch.int64).squeeze(1))
                 epoch_loss += loss.item()
                 writer.add_scalar('Loss/train', loss.item(), batch_num)
                 tepoch.set_postfix(loss=epoch_loss)

@@ -5,11 +5,11 @@ import torch.nn.functional as F
 
 # define a convolution block which consist of Conv2d -> BatchNorm -> Relu
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, filter_size=3):
+    def __init__(self, in_channels, out_channels, filter_size=3, stride = 1):
         super().__init__()
         self.conv_block = nn.Sequential(
             # we are suppose to do "same" padding
-            nn.Conv2d(in_channels,out_channels, kernel_size=filter_size, padding=0),
+            nn.Conv2d(in_channels,out_channels, kernel_size=filter_size, padding=1, padding_mode='replicate', stride=stride),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
         )
@@ -34,12 +34,12 @@ class EncoderBlock(nn.Module):
 
 # Define a deconvolution block, which is used to up-sampling the feature map.
 class DecoderBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, in_channels, out_channels, conv_filter_size=3, conv_stride=1):
         super().__init__()
         self.deconv = nn.ConvTranspose2d(in_channels, in_channels //2, kernel_size=2, stride=2)
         self.two_convs = nn.Sequential(
-            ConvBlock(in_channels, out_channels, filter_size=3),
-            ConvBlock(out_channels, out_channels, filter_size=3)
+            ConvBlock(in_channels, out_channels),
+            ConvBlock(out_channels, out_channels)
         )
 
     def padding(self, x1, x2):
