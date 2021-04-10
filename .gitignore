@@ -1,3 +1,5 @@
+# remove jupyter
+playground.ipynb
 # dataset
 SegmentationDataset
 # idea format file

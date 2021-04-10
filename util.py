@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
+import torch
 
 SEG_LABELS_LIST_v1 = [
     {"id": -1, "name": "void",       "rgb_values": [0,   0,    0]},
@@ -60,6 +60,7 @@ def dataloader_tester(train_dataloader, val_dataloader, test_dataloader):
     plot_image(img, 'train_image', cv2=False)
     plot_image(mask, 'train_seg')
 
+
     input, labels = next(iter(val_dataloader))
     print(input.shape, labels.shape)
     img = input[2].numpy().transpose(1, 2, 0)
@@ -71,3 +72,14 @@ def dataloader_tester(train_dataloader, val_dataloader, test_dataloader):
     print(input.shape)
     img = input[2].numpy().transpose(1, 2, 0)
     plot_image(img, 'test_image', cv2=False)
+
+def batch_accuracy(pred:torch.Tensor,gt:torch.Tensor, threshold = 0.5):
+    if pred.shape != gt.shape:
+        raise Exception("Wrong prediction and Ground Truth shape")
+    gt, pred = torch.flatten(gt), torch.flatten(pred)
+    gt = gt.cpu().detach().numpy()
+    pred = pred.cpu().detach().numpy()
+    pred[pred > threshold] = 1
+    pred[pred <= threshold] = 0
+    acc = (len(gt) - np.count_nonzero(pred-gt))/(len(gt))
+    return acc

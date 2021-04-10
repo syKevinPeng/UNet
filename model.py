@@ -61,7 +61,13 @@ class DecoderBlock(nn.Module):
 class OutputLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutputLayer, self).__init__()
-        self.output = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
+        if out_channels == 1:
+            self.output = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size = 1),
+                nn.Sigmoid()
+            )
+        else:
+            self.output = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
 
     def forward(self, x):
         return self.output(x)
