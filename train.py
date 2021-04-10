@@ -3,63 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from dataloader import preprocessing
-
-
-# define a convolution block which consist of Conv2d -> BatchNorm -> Relu
-class ConvBlock(nn.module):
-    def __init__(self, in_channels, out_channels, filter_size =3):
-        super().__init__()
-        self.conv_block = nn.Sequential(
-            # we are suppose to do "same" padding
-            nn.Conv2d(in_channels,out_channels, kernel_size=filter_size, padding=0),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x):
-        return self.conv_block(x)
-
-
-# Define encoder block, which include max poll-> convBlock -> convBlock
-class EncoderBlock(nn.module):
-    def __init__(self,in_channels, out_channels):
-        super().__init__()
-        self.encoder_block = nn.Sequential(
-            nn.MaxPool2d(2),
-            ConvBlock(in_channels,out_channels),
-            ConvBlock(out_channels, out_channels)
-        )
-
-    def forward(self, x):
-        return self.encoder_block(x)
-
-
-# Define a deconvolution block, which is used to up-sampling the feature map.
-class DecoderBlock(nn.module):
-    def __init__(self, in_channels, out_channels):
-        self.deconv = nn.ConvTranspose2d(in_channels, in_channels //2 , kernel_size = 2, stride = 2)
-        self.two_convs = nn.Sequential(
-            ConvBlock(in_channels, out_channels, filter_size=3),
-            ConvBlock(out_channels, out_channels, filter_size=3)
-        )
-
-    def forward(self, x1, x2):
-        # pipeline: calculate up-sampling -> concat with prev layer -> 2 x conv
-        x1 = self.deconv(x1)
-        concat = torch.cat([x2, x1], 1)  # concat on dimension 1
-        result = self.two_convs(concat)
-        return result
-
-
-# Define last output layer: a conv layer with 1x1 filter size.
-class OutputLayer(nn.module):
-    def __init__(self, in_channels, out_channels):
-        super(OutputLayer, self).__init__()
-        self.output = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
-
-    def forward(self, x):
-        return self.output(x)
-
+from model import ConvBlock, EncoderBlock, DecoderBlock, OutputLayer
+from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
+DEVICE = 'cuda:0'
 
 
 class UNet(nn.Module):
@@ -102,6 +50,48 @@ class UNet(nn.Module):
         return logits
 
 
+def training(train_dataloader, val_dataloader):
+    # Hyper-parameters:
+    num_epochs = 100
+    lr = 1e-4
+    batch_size = 32
+
+    # model initialization
+    model = UNet(input_channel=3, n_classes=10)
+    model = model.cuda()
+    criterion = nn.BCELoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    criterion = nn.CrossEntropyLoss()
+    writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}_{datetime.now().strftime("%H-%M-%S")}')
+
+    # Run your training / validation loops
+    epoch_loss = 0
+    for epoch in range(num_epochs):
+        model.train()
+        # training loop
+        epoch_loss = 0
+        with tqdm(train_dataloader, unit='batch') as tepoch:
+            for batch_num, batch in enumerate(tepoch):
+                tepoch.set_description(f"Epoch {epoch}")
+                img, label = batch
+                img, label = img.to(DEVICE), label.to(DEVICE)
+                optimizer.zero_grad()
+                prediction = model(img)
+                loss = criterion(prediction, label)
+                epoch_loss += loss.item()
+                writer.add_scalar('Loss/train', loss.item(), batch_num)
+                tepoch.set_postfix(loss=epoch_loss)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+        # with torch.no_grad():
+        #     model.eval()
+
 if __name__ == "__main__":
     train_dataloader, val_dataloader, test_dataloader = preprocessing()
-    util.dataloader_tester(train_dataloader, val_dataloader, test_dataloader)
+    # util.dataloader_tester(train_dataloader, val_dataloader, test_dataloader)
+    training(train_dataloader,val_dataloader)
+
+
+
