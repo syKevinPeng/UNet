@@ -11,7 +11,7 @@ class ConvBlock(nn.Module):
             # we are suppose to do "same" padding
             nn.Conv2d(in_channels,out_channels, kernel_size=filter_size, padding=1, padding_mode='replicate', stride=stride),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
+            nn.ReLU()
         )
 
     def forward(self, x):
@@ -61,13 +61,14 @@ class DecoderBlock(nn.Module):
 class OutputLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutputLayer, self).__init__()
-        if out_channels == 1:
-            self.output = nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size = 1),
-                nn.Sigmoid()
-            )
-        else:
-            self.output = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
+        # if out_channels == 1:
+        #     self.output = nn.Sequential(
+        #         nn.Conv2d(in_channels, out_channels, kernel_size = 1),
+        #         nn.Sigmoid()
+        #     )
+        # else:
+        #     self.output = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
+        self.output = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
         return self.output(x)
@@ -75,6 +76,7 @@ class OutputLayer(nn.Module):
 class UNet(nn.Module):
     def __init__(self, input_channel, n_classes):
         super(UNet, self).__init__()
+        # define different layers
         self.n_channels = input_channel
         self.n_classes = n_classes
         # define input layers
@@ -92,6 +94,7 @@ class UNet(nn.Module):
         self.decoder4 = DecoderBlock(128, 64)
         # define output layers
         self.out_layer = OutputLayer(64, self.n_classes)
+
 
     def forward(self, x):
         # input layer

@@ -3,11 +3,12 @@ import torch
 import torch.nn as nn
 import numpy as np
 from dataloader import preprocessing
-from model import ConvBlock, EncoderBlock, DecoderBlock, OutputLayer, UNet
+from model import UNet
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 from torchsummary import summary
+import os
 DEVICE = 'cuda:0'
 
 
@@ -28,7 +29,6 @@ def training(train_dataloader, val_dataloader,
     # optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     optimizer = torch.optim.RMSprop(model.parameters(), lr=lr, weight_decay=weight_decay, momentum=momentum)
     writer = SummaryWriter(comment=f'LR_{lr}_BS_{batch_size}')
-
     # Run your training / validation loops
     with tqdm(range(num_epochs), total=num_epochs, unit='Epoch') as pbar:
         for epoch in pbar:
@@ -51,7 +51,6 @@ def training(train_dataloader, val_dataloader,
                     train_acc = util.batch_accuracy(prediction, label)
                 train_epoch_loss += train_loss.item()
                 train_epoch_acc += train_acc
-                optimizer.zero_grad()
                 train_loss.backward()
                 optimizer.step()
 
@@ -61,13 +60,14 @@ def training(train_dataloader, val_dataloader,
                 for batch_num, batch in enumerate(val_dataloader):
                     img, label = batch
                     img, label = img.to(DEVICE), label.to(DEVICE)
-                    prediction = model(img)
+                    validation_pred = model(img)
                     if number_of_class != 1:
-                        val_loss = criterion(prediction, label.type(torch.int64).squeeze(1))
+                        val_loss = criterion(validation_pred, label.type(torch.int64).squeeze(1))
                         # TODO calculate acc for instance segmentation
                     else:
-                        val_loss = criterion(prediction, label)
-                        val_acc = util.batch_accuracy(prediction, label)
+                        val_loss = criterion(validation_pred, label)
+                        val_acc = util.batch_accuracy(validation_pred, label)
+
                     valid_epoch_loss += val_loss.item()
                     valid_epoch_acc  += val_acc
             # Average accuracy
@@ -79,11 +79,27 @@ def training(train_dataloader, val_dataloader,
             writer.add_scalar('Loss/validation', valid_epoch_loss, epoch)
             writer.add_scalar('Accuracy/train', train_epoch_acc, epoch)
             writer.add_scalar('Accuracy/validation', valid_epoch_acc, epoch)
+        # save last epoch
+        if not os.path.isdir("weights"):
+            os.mkdir("weights")
+        torch.save(model.state_dict(), os.path.join("weights", f'{datetime.strftime(datetime.now(), "%M-%H-%d")}.pt'))
 
 if __name__ == "__main__":
+    # define Hyper-parameters:
+    num_epochs = 100
+    lr = 1e-4
+    weight_decay = 1e-8
+    momentum = 0.9
+    batch_size = 32
+
     train_dataloader, val_dataloader, test_dataloader = preprocessing()
     # util.dataloader_tester(train_dataloader, val_dataloader, test_dataloader)
-    training(train_dataloader,val_dataloader)
+    training(train_dataloader, val_dataloader,
+             num_epochs=num_epochs,
+             lr=lr,
+             weight_decay=weight_decay,
+             momentum=momentum,
+             batch_size=batch_size)
 
 
 

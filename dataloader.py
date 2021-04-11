@@ -42,6 +42,7 @@ class SegmentationData(data.Dataset):
           mask = Image.fromarray(mask)
           tensor_img = self.img_transform(img)
           tensor_mask = self.mask_transform(mask)
+          tensor_mask[tensor_mask > 0] = 1
           return tensor_img,tensor_mask
       else:
           img = Image.open(self.x[self.mode][index]).convert('RGB')

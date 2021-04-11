@@ -73,13 +73,20 @@ def dataloader_tester(train_dataloader, val_dataloader, test_dataloader):
     img = input[2].numpy().transpose(1, 2, 0)
     plot_image(img, 'test_image', cv2=False)
 
-def batch_accuracy(pred:torch.Tensor,gt:torch.Tensor, threshold = 0.5):
-    if pred.shape != gt.shape:
+def batch_accuracy(preds:torch.Tensor,gts:torch.Tensor, threshold = 0.5):
+    preds = preds.detach().clone()
+    if preds.shape != gts.shape:
         raise Exception("Wrong prediction and Ground Truth shape")
-    gt, pred = torch.flatten(gt), torch.flatten(pred)
-    gt = gt.cpu().detach().numpy()
-    pred = pred.cpu().detach().numpy()
-    pred[pred > threshold] = 1
-    pred[pred <= threshold] = 0
-    acc = (len(gt) - np.count_nonzero(pred-gt))/(len(gt))
-    return acc
+    preds[preds > threshold] = 1
+    preds[preds <= threshold] = 0
+    total = gts.nelement()
+    acc = (total - torch.count_nonzero(preds-gts))/total
+    return acc.item()
+
+    # gt, pred = torch.flatten(gt), torch.flatten(pred)
+    # gt = gt.cpu().detach().numpy()
+    # pred = pred.cpu().detach().numpy()
+    # pred[pred > threshold] = 1
+    # pred[pred <= threshold] = 0
+    # acc = (len(gt) - np.count_nonzero(pred-gt))/(len(gt))
+    # return acc
