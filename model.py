@@ -15,7 +15,7 @@ class ConvBlock(nn.Module):
         )
 
     def forward(self, x):
-        return self.conv_block(x)
+        return self.conv_block(x.float())
 
 
 # Define encoder block, which include max poll-> convBlock -> convBlock
@@ -61,13 +61,6 @@ class DecoderBlock(nn.Module):
 class OutputLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutputLayer, self).__init__()
-        # if out_channels == 1:
-        #     self.output = nn.Sequential(
-        #         nn.Conv2d(in_channels, out_channels, kernel_size = 1),
-        #         nn.Sigmoid()
-        #     )
-        # else:
-        #     self.output = nn.Conv2d(in_channels, out_channels, kernel_size = 1)
         self.output = nn.Conv2d(in_channels, out_channels, kernel_size=1)
 
     def forward(self, x):
@@ -111,5 +104,43 @@ class UNet(nn.Module):
         x = self.decoder2(x, e2)
         x = self.decoder3(x, e1)
         x = self.decoder4(x, i)
+        logits = self.out_layer(x)
+        return logits
+
+class MiniUnet(nn.Module):
+    # Mini Unet reduce the number encoder and decoder
+    def __init__(self, input_channel, n_classes):
+        super(MiniUnet, self).__init__()
+        # define different layers
+        self.n_channels = input_channel
+        self.n_classes = n_classes
+        # define input layers
+        self.in_layer_1 = ConvBlock(self.n_channels, 64)
+        self.in_layer_2 = ConvBlock(64, 64)
+        # define encoder layers
+        self.encoder1 = EncoderBlock(64, 128)
+        self.encoder2 = EncoderBlock(128, 256)
+        self.encoder3 = EncoderBlock(256, 512)
+        # define decoder layers
+        self.decoder1 = DecoderBlock(512, 256)
+        self.decoder2 = DecoderBlock(256, 128)
+        self.decoder3 = DecoderBlock(128, 64)
+        # define output layers
+        self.out_layer = OutputLayer(64, self.n_classes)
+
+
+    def forward(self, x):
+        # input layer
+        x = self.in_layer_1(x)
+        i = self.in_layer_2(x)
+        # downsampling / conv
+        e1 = self.encoder1(i)
+        e2 = self.encoder2(e1)
+        e3 = self.encoder3(e2)
+        # concat prev encoder layer. i.e. skip connection
+        # name the output as x to save graphic memory
+        x = self.decoder1(e3, e2)
+        x = self.decoder2(x, e1)
+        x = self.decoder3(x, i)
         logits = self.out_layer(x)
         return logits

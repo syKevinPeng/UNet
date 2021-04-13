@@ -1,6 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
+import glob
+
+msrc_directory = 'SegmentationDataset'
+DEVICE = 'cuda:0'
 
 SEG_LABELS_LIST_v1 = [
     {"id": -1, "name": "void",       "rgb_values": [0,   0,    0]},
@@ -50,6 +54,8 @@ def plot_image(im,title,xticks=[],yticks= [],cv2 = True):
     plt.title(title)
     plt.xticks(xticks)
     plt.yticks(yticks)
+    plt.show()
+
 
 def dataloader_tester(train_dataloader, val_dataloader, test_dataloader):
     input, labels = next(iter(train_dataloader))
@@ -90,3 +96,39 @@ def batch_accuracy(preds:torch.Tensor,gts:torch.Tensor, threshold = 0.5):
     # pred[pred <= threshold] = 0
     # acc = (len(gt) - np.count_nonzero(pred-gt))/(len(gt))
     # return acc
+
+def dataset_stats():
+    img_list_train_val = [x.split('.')[-2].split('/')[-1][:-3] for x in glob.glob(msrc_directory + '/train/*')
+                               if 'GT' in x]
+    dataset_name = ['%s/%s.bmp' % (msrc_directory, x) for x in img_list_train_val]
+    dataset = torch.as_tensor([])
+    for img_name in dataset_name:
+        # print(f'img name {img_name}')
+        img = torch.as_tensor(np.array(plt.imread(img_name)))
+        if len(dataset) == 0:
+            dataset = torch.unsqueeze(img, 0)
+        else:
+            if img.shape != torch.Size([213,320,3]):
+                img = torch.swapaxes(img, 0, 1)
+            # print(f'img shape: {torch.unsqueeze(img, 0).shape}')
+            dataset = torch.cat((dataset,torch.unsqueeze(img, 0)))
+    print(f'Calculating Mean and Std of the Dataset ...')
+    dataset = dataset.to(DEVICE).float()
+    imgs_mean = torch.mean(dataset,dim=(0,1,2))
+    imgs_std = torch.std(dataset,dim=(0,1,2))
+    print(f'imgs mean: {imgs_mean}\nimgs std: {imgs_std}')
+    return imgs_mean, imgs_std
+
+def show_test_result(result_path):
+    masks = torch.load(result_path)
+    print(f'masks: ', masks)
+    assert (masks.shape == (24, 256, 256))
+    assert ((torch.where(masks == 1, 10, 0).sum() + torch.where(masks == 0, 10, 0).sum()).item() == 24 * 256 * 256 * 10)
+    masks = torch.moveaxis(masks, 0, 2)
+    rand_idx = np.random.randint(0, 23)
+    rand_mask = masks[:,:,rand_idx].cpu().detach().numpy()
+    plt.imshow(rand_mask)
+    plt.title(str(rand_idx))
+    plt.show()
+if __name__ == "__main__":
+    dataset_stats()

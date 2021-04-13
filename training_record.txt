@@ -1,0 +1,3 @@
+No Normalize, augmented validation batch_size 16 learning rate 0.005: Best Validation Acc: 0.5585352579752604
+No Normalize, augmented validation batch_size 32 learning rate 0.01 : Best Validation Acc: 0.5735652446746826
+Nomalize with 0.5, augmented validation batch_size 32 learning rate 0.01 : Best Validation:0.5948634147644043
