@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-
+from torchsummary import summary
+'''
+------- Unet Component -------
+'''
 # define a convolution block which consist of Conv2d -> BatchNorm -> Relu
 class ConvBlock(nn.Module):
     def __init__(self, in_channels, out_channels, filter_size=3, stride = 1):
@@ -65,6 +67,105 @@ class OutputLayer(nn.Module):
 
     def forward(self, x):
         return self.output(x)
+
+'''
+------- ResUnet Component -------
+This architecture is based on paper road Extraction by Deep Residual U-Net: https://arxiv.org/pdf/1711.10684.pdf
+'''
+
+class ResidualConv(nn.Module):
+    def __init__(self, in_channels, out_channels, stride, padding):
+        super(ResidualConv, self).__init__()
+        self.conv_block = nn.Sequential(
+            nn.BatchNorm2d(in_channels),
+            nn.ReLU(),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=padding),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+        )
+        self.conv_skip = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1),
+            nn.BatchNorm2d(out_channels),
+        )
+
+    def forward(self, x):
+        return self.conv_block(x) + self.conv_skip(x)
+
+
+class UpsampleResidual(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UpsampleResidual, self).__init__()
+        self.upsample = nn.Upsample(in_channels,in_channels, kernel=2, stride=2)
+        self.residual = ResidualConv(in_channels+out_channels, out_channels, 1, 1)
+
+
+    def forward(self, x1, x2):
+        x1 = self.upsample(x1)
+        concat = torch.cat([x1, x2], dim=1)
+        return self.residual(concat)
+
+
+class residual_input(nn.Module):
+    def __init__(self,in_channels, out_channels):
+        super(residual_input, self).__init__()
+        self.input = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+        )
+    def forward(self,x):
+        return self.input(x)
+
+
+class double_residual(nn.Module):
+    def __init__(self, in_channels, intermediate_channels, out_chaneels):
+        super(double_residual, self).__init__()
+        self.double_residual = nn.Sequential(
+            ResidualConv(in_channels, intermediate_channels, 2, 1),
+            ResidualConv(intermediate_channels, out_chaneels, 2, 1)
+        )
+    def forward(self, x):
+        self.double_residual(x)
+
+'''
+------- Define Architecture -------
+'''
+class ResUnet(nn.Module):
+    def __init__(self, input_channel, n_classes, channel_list=[64, 128, 256, 512]):
+        super(ResUnet, self).__init__()
+        self.n_channels = input_channel
+        self.n_classes = n_classes
+        # Input layers
+        self.in_layer = residual_input(input_channel, channel_list[0])
+        self.in_layer_skip = nn.Conv2d(input_channel, channel_list[0], 3, 1)
+        # Encoder
+        self.encoder_1 = ResidualConv(channel_list[0], channel_list[1], 2, 1)
+        self.encoder_2 = ResidualConv(channel_list[1], channel_list[2], 2, 1)
+        self.skip = ResidualConv(channel_list[2], channel_list[3], 2, 1)
+        # Decoder
+        self.upsample_residual_1 = UpsampleResidual(channel_list[3], channel_list[2])
+        self.upsample_residual_2 = UpsampleResidual(channel_list[2], channel_list[1])
+        self.upsample_residual_3 = UpsampleResidual(channel_list[1], channel_list[0])
+        # Output Layer
+        self.output = OutputLayer(channel_list[0], n_classes)
+
+    def forward(self, x):
+        x1 = self.input_layer(x) + self.input_skip(x)
+        # Encode
+        x2 = self.encoder_1(x1)
+        x3 = self.encoder_2(x2)
+        x4 = self.skip(x3)
+        # Decode
+        x5 = self.upsample_residual_1(x4, x3)
+        x6 = self.upsample_residual_2(x5, x2)
+        x7 = self.upsample_residual_3(x6, x1)
+
+        output = self.output(x7)
+        return output
+
+
 
 class UNet(nn.Module):
     def __init__(self, input_channel, n_classes):
@@ -144,3 +245,10 @@ class MiniUnet(nn.Module):
         x = self.decoder3(x, i)
         logits = self.out_layer(x)
         return logits
+
+
+if __name__ == "__main__":
+    # display module
+    model = ResUnet(input_channel=3, n_classes=1)
+    model = model.cuda()
+    summary(model, (3, 256, 256))
