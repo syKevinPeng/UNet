@@ -13,7 +13,7 @@ msrc_directory = 'SegmentationDataset'
 
 class SegmentationData(data.Dataset):
     def __init__(self, img_transform, mask_transform, img_aug_transform, mode='train', img_aug=False):
-        if mode not in ['train', 'test', 'val']:
+        if mode not in ['train', 'test', 'val', "all"]:
             raise ValueError('Invalid Split %s' % mode)
         self.mode = mode
         self.img_transform = img_transform
@@ -33,13 +33,15 @@ class SegmentationData(data.Dataset):
         self.x['val'] = ['%s/%s.bmp' % (msrc_directory, x) for x in self.img_list_train_val[168:]]
         self.y['val'] = ['%s/%s_GT.bmp' % (msrc_directory, x) for x in self.img_list_train_val[168:]]
         self.x['test'] = ['%s/%s.bmp' % (msrc_directory, x) for x in self.img_list_test]
+        self.x['all'] = ['%s/%s.bmp' % (msrc_directory, x) for x in self.img_list_train_val]
+        self.y['all'] = ['%s/%s_GT.bmp' % (msrc_directory, x) for x in self.img_list_train_val]
 
 
     def __len__(self):
         return len(self.x[self.mode])
 
     def __getitem__(self, index):
-        if self.mode in ['train', 'val']:
+        if self.mode in ['train', 'val', 'all']:
             img = plt.imread(self.x[self.mode][index])
             mask = util.get_binary_seg(plt.imread(self.y[self.mode][index]))
             img, mask = np.moveaxis(img,-1,0), np.moveaxis(mask, -1, 0)
@@ -75,8 +77,8 @@ def preprocessing(batch_size, is_img_aug = True):
     img_aug = transforms.Compose([transforms.RandomApply([
                 transforms.RandomHorizontalFlip(),
                 # transforms.RandomCrop(256, padding=0, pad_if_needed=True, padding_mode='constant'),
-                transforms.RandomVerticalFlip(),
-                transforms.GaussianBlur((5,5)),
+                # transforms.RandomVerticalFlip(),
+                # transforms.GaussianBlur((5,5)),
                 transforms.RandomRotation(25)
                 ])])
 
@@ -96,8 +98,14 @@ def preprocessing(batch_size, is_img_aug = True):
                                 img_aug_transform=img_aug,
                                 mode='test')
     test_dataloader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
+    all_set = SegmentationData(img_transform=img_transform,
+                                 mask_transform=mask_transform,
+                                 img_aug_transform=img_aug,
+                                 mode='all',
+                                 img_aug =is_img_aug)
+    all_dataloader = torch.utils.data.DataLoader(all_set, batch_size=batch_size, shuffle=True)
 
-    return train_dataloader, val_dataloader, test_dataloader
+    return train_dataloader, val_dataloader, test_dataloader, all_dataloader
 
 
 if __name__ == "__main__":

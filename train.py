@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 from torchsummary import summary
 import os
+import copy
 import torch.nn.functional as F
 DEVICE = 'cuda:0'
 
@@ -40,6 +41,7 @@ def training(model, train_dataloader, val_dataloader,
             train_epoch_acc = 0
             valid_epoch_acc = 0
             for batch_num, batch in enumerate(train_dataloader):
+                train_batch_loss = 0
                 img, label = batch
                 # img, label = img.to(DEVICE), label.to(DEVICE)
                 optimizer.zero_grad()
@@ -50,14 +52,17 @@ def training(model, train_dataloader, val_dataloader,
                 else:
                     train_loss = criterion(prediction, label)
                     train_acc = batch_accuracy(prediction, label)
+                train_batch_loss += train_loss.item()
                 train_epoch_loss += train_loss.item()
                 train_epoch_acc += train_acc
+                writer.add_scalar('Loss_batch/train', train_batch_loss, epoch*len(train_dataloader)+batch_num)
                 train_loss.backward()
                 optimizer.step()
 
             # validation loop
             with torch.no_grad():
                 model.eval()
+                valid_batch_loss = 0
                 for batch_num, batch in enumerate(val_dataloader):
                     img, label = batch
                     # img, label = img.to(DEVICE), label.to(DEVICE)
@@ -68,23 +73,26 @@ def training(model, train_dataloader, val_dataloader,
                     else:
                         val_loss = criterion(validation_pred, label)
                         val_acc = batch_accuracy(validation_pred, label)
-
+                    valid_batch_loss +=val_loss.item()
                     valid_epoch_loss += val_loss.item()
                     valid_epoch_acc  += val_acc
+                    writer.add_scalar('Loss_batch/validation', valid_batch_loss, epoch * len(train_dataloader) + batch_num)
             # Average accuracy
             train_epoch_acc /= len(train_dataloader)
             valid_epoch_acc /= len(val_dataloader)
-            best_validation_acc = valid_epoch_acc if valid_epoch_acc > best_validation_acc else best_validation_acc
+            if valid_epoch_acc > best_validation_acc:
+                best_validation_acc = valid_epoch_acc
+                best_model_para = copy.deepcopy(model.state_dict())
             pbar.set_postfix(train_loss=train_epoch_loss, train_acc=train_epoch_acc, val_loss=valid_epoch_loss, val_acc=valid_epoch_acc)
             # write to tensorboard
             writer.add_scalar('Loss/train', train_epoch_loss, epoch)
             writer.add_scalar('Loss/validation', valid_epoch_loss, epoch)
             writer.add_scalar('Accuracy/train', train_epoch_acc, epoch)
             writer.add_scalar('Accuracy/validation', valid_epoch_acc, epoch)
-        # save last epoch
+        # save best epoch
         if not os.path.isdir("weights"):
             os.mkdir("weights")
-        torch.save(model.state_dict(), os.path.join("weights", f'{datetime.strftime(datetime.now(), "%d-%H-%M")}.pt'))
+        torch.save(best_model_para, os.path.join("weights", f'{datetime.strftime(datetime.now(), "%B-%d-%H")}.pt'))
         print(f'Best Validation Acc: {best_validation_acc}')
 
 def prediction(test_dataloader,model, weights):
@@ -113,16 +121,16 @@ def prediction(test_dataloader,model, weights):
 
 if __name__ == "__main__":
 
-    mode = "test"
+    mode = "train"
 
     # define Hyper-parameters:
-    num_epochs = 300
-    lr = 5e-2
-    weight_decay = 1e-7
+    num_epochs = 200
+    lr = 7e-2
+    weight_decay = 5e-6
     momentum = 0.9
     batch_size = 32
     model = UNet(input_channel=3, n_classes=1)
-    train_dataloader, val_dataloader, test_dataloader = preprocessing(batch_size, is_img_aug=True)
+    train_dataloader, val_dataloader, test_dataloader, all_dataloader = preprocessing(batch_size, is_img_aug=True)
     if mode == 'train':
         # util.dataloader_tester(train_dataloader, val_dataloader, test_dataloader)
         training(model,train_dataloader, val_dataloader,
@@ -132,8 +140,15 @@ if __name__ == "__main__":
                  momentum=momentum,
                  batch_size=batch_size)
     elif mode == 'test':
-        prediction(test_dataloader,model,"09-21-12.pt")
+        prediction(test_dataloader,model,"April-13-16.pt")
         show_test_result("tuge0.pth")
+    elif mode == 'all':
+        training(model, all_dataloader, val_dataloader,
+                 num_epochs=num_epochs,
+                 lr=lr,
+                 weight_decay=weight_decay,
+                 momentum=momentum,
+                 batch_size=batch_size)
 
 
 

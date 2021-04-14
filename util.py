@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import glob
-
+import tensorboard as tb
 msrc_directory = 'SegmentationDataset'
 DEVICE = 'cuda:0'
 
@@ -130,5 +130,45 @@ def show_test_result(result_path):
     plt.imshow(rand_mask)
     plt.title(str(rand_idx))
     plt.show()
+
+def plot_train_val_acc_loss(experiment_id, run_name):
+    experiment = tb.data.experimental.ExperimentFromDev(experiment_id)
+    df = experiment.get_scalars()
+    best_run = df.loc[df['run'] == run_name]
+    loss_train = best_run.loc[best_run['tag'] == 'Loss/train']
+    loss_val = best_run.loc[best_run['tag'] == 'Loss/validation']
+    acc_train = best_run.loc[best_run['tag'] == 'Accuracy/train']
+    acc_val = best_run.loc[best_run['tag'] == 'Accuracy/validation']
+    loss_batch_train = best_run.loc[best_run['tag'] == 'Loss_batch/train']
+    loss_batch_val = best_run.loc[best_run['tag'] == 'Loss_batch/validation']
+    print(loss_batch_train)
+
+
+    plt.figure(figsize=(16, 6))
+    # Plot training and validation loss per batch
+    plt.subplot(2, 2, 1)
+    plt.plot(loss_batch_train['step'], loss_batch_train['value'])
+    plt.xlabel('batch')
+    plt.ylabel('loss')
+    plt.title('Training loss per batch')
+    plt.subplot(2, 2, 2)
+    plt.plot(loss_batch_val['step'], loss_batch_val['value'])
+    plt.xlabel('batch')
+    plt.ylabel('loss')
+    plt.ylim((0.6, 4))
+    plt.title('Validation loss per batch')
+    # plot training and validation accuracy per epoch
+    plt.subplot(2, 2, 3)
+    plt.plot(acc_train['step'], acc_train['value'])
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.title('Training Accuracy per Epoch')
+    plt.subplot(2, 2, 4)
+    plt.plot(acc_val['step'], acc_val['value'])
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.title('Validation accuracy per Epoch')
+    plt.show()
+
 if __name__ == "__main__":
-    dataset_stats()
+    plot_train_val_acc_loss(experiment_id="tQEQnsA4S2KY6znAqP8IGQ", run_name="Apr13_16-59-07_Tuge-PCLR_0.07_BS_32")
